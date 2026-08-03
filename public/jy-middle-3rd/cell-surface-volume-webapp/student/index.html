@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>세포의 표면적과 부피 탐구</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">중학교 3학년 과학</p>
+      <h1>세포의 표면적과 부피 탐구</h1>
+    </div>
+    <button id="logoutBtn" class="ghost hidden" type="button">로그아웃</button>
+  </header>
+
+  <main class="page">
+    <section id="loginView" class="panel login-panel">
+      <div class="section-title">
+        <span class="step-badge">학생 로그인</span>
+        <h2>등록된 학생만 시작할 수 있어요</h2>
+        <p>반, 번호, 생년월일 8자리를 입력하세요.</p>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span>반</span>
+          <input id="classInput" inputmode="text" autocomplete="off" placeholder="예: 1" />
+        </label>
+        <label>
+          <span>번호</span>
+          <input id="numberInput" inputmode="text" autocomplete="off" placeholder="예: 7" />
+        </label>
+        <label class="full">
+          <span>생년월일 8자리</span>
+          <input id="birthInput" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="예: 20120315" />
+        </label>
+      </div>
+
+      <button id="loginBtn" class="primary wide" type="button">로그인</button>
+      <p id="loginMessage" class="message" aria-live="polite"></p>
+
+      <details class="demo-note">
+        <summary>체험용 계정 보기</summary>
+        <p>1반 1번 / 20120301, 1반 2번 / 20120417</p>
+      </details>
+    </section>
+
+    <section id="appView" class="hidden">
+      <div class="student-strip">
+        <div>
+          <strong id="studentLabel">3학년 1반 1번</strong>
+          <span id="studentName">김가은</span>
+        </div>
+        <span class="status-chip">자동 저장</span>
+      </div>
+
+      <nav class="step-nav" aria-label="탐구 단계">
+        <button class="step active" data-step="1" type="button">1. 예상</button>
+        <button class="step" data-step="2" type="button">2. 실험</button>
+        <button class="step" data-step="3" type="button">3. 해석</button>
+        <button class="step" data-step="4" type="button">4. 결론</button>
+      </nav>
+
+      <section class="panel step-panel" data-panel="1">
+        <div class="section-title">
+          <span class="step-badge">1단계</span>
+          <h2>예상하기</h2>
+          <p>세포의 크기가 커질수록 물질 이동 효율이 어떻게 달라질지 예상해 보세요.</p>
+        </div>
+        <label>
+          <span>나의 예상</span>
+          <textarea id="prediction" rows="5" placeholder="예상과 그 까닭을 함께 작성하세요."></textarea>
+        </label>
+        <div class="actions">
+          <span></span>
+          <button class="primary next-btn" data-next="2" type="button">다음</button>
+        </div>
+      </section>
+
+      <section class="panel step-panel hidden" data-panel="2">
+        <div class="section-title compact">
+          <span class="step-badge">2단계</span>
+          <h2>세포 모형 시뮬레이션</h2>
+          <p>휴대폰에서도 조작과 핵심 결과가 한 화면에 보이도록 구성했습니다.</p>
+        </div>
+
+        <div class="simulation-shell">
+          <div class="cell-stage" aria-label="세포 모형">
+            <div id="cellCube" class="cell-cube">
+              <div id="innerCube" class="inner-cube"></div>
+              <span id="cellSizeText">2 cm</span>
+            </div>
+          </div>
+
+          <div class="controls-results">
+            <div class="control-row">
+              <button id="minusBtn" class="round" type="button" aria-label="크기 줄이기">−</button>
+              <div class="size-readout">
+                <small>한 변의 길이</small>
+                <strong><span id="sizeValue">2</span> cm</strong>
+              </div>
+              <button id="plusBtn" class="round" type="button" aria-label="크기 늘리기">＋</button>
+            </div>
+
+            <label class="range-label">
+              <span>침투 깊이 <strong><span id="penetrationValue">0.5</span> cm</strong></span>
+              <input id="penetrationRange" type="range" min="0.1" max="1" step="0.1" value="0.5" />
+            </label>
+
+            <button id="runBtn" class="primary wide" type="button">실험 결과 기록</button>
+
+            <div class="metric-grid" aria-live="polite">
+              <div class="metric">
+                <span>표면적</span>
+                <strong id="surfaceArea">24</strong>
+                <small>cm²</small>
+              </div>
+              <div class="metric">
+                <span>부피</span>
+                <strong id="volume">8</strong>
+                <small>cm³</small>
+              </div>
+              <div class="metric">
+                <span>표면적/부피</span>
+                <strong id="ratio">3.00</strong>
+                <small>cm⁻¹</small>
+              </div>
+              <div class="metric accent">
+                <span>침투 부피 비율</span>
+                <strong id="penetratedPercent">87.5</strong>
+                <small>%</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="records">
+          <div class="records-head">
+            <h3>최근 실험 결과</h3>
+            <button id="clearRecordsBtn" class="ghost small" type="button">기록 초기화</button>
+          </div>
+          <div id="recordList" class="record-list">
+            <p class="empty">아직 기록된 실험이 없습니다.</p>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button class="ghost prev-btn" data-prev="1" type="button">이전</button>
+          <button class="primary next-btn" data-next="3" type="button">다음</button>
+        </div>
+      </section>
+
+      <section class="panel step-panel hidden" data-panel="3">
+        <div class="section-title">
+          <span class="step-badge">3단계</span>
+          <h2>자료 해석하기</h2>
+          <p>아래 결과 요약을 보면서 관계를 설명하세요.</p>
+        </div>
+
+        <div id="summaryCards" class="summary-cards"></div>
+
+        <label>
+          <span>세포 크기와 표면적/부피 비의 관계</span>
+          <textarea id="interpretation1" rows="4" placeholder="실험 결과를 근거로 설명하세요."></textarea>
+        </label>
+
+        <label>
+          <span>세포 크기와 물질 이동 효율의 관계</span>
+          <textarea id="interpretation2" rows="4" placeholder="침투 부피 비율을 근거로 설명하세요."></textarea>
+        </label>
+
+        <div class="actions">
+          <button class="ghost prev-btn" data-prev="2" type="button">이전</button>
+          <button class="primary next-btn" data-next="4" type="button">다음</button>
+        </div>
+      </section>
+
+      <section class="panel step-panel hidden" data-panel="4">
+        <div class="section-title">
+          <span class="step-badge">4단계</span>
+          <h2>결론 작성하기</h2>
+          <p>실험 결과를 근거로 세포 분열이 필요한 이유를 설명하세요.</p>
+        </div>
+
+        <label>
+          <span>최종 결론</span>
+          <textarea id="conclusion" rows="7" placeholder="실험 결과 1개 이상, 표면적과 부피의 관계, 물질 이동과 세포 분열의 관계를 포함하세요."></textarea>
+        </label>
+
+        <label>
+          <span>이 모형 실험의 한계</span>
+          <textarea id="limitation" rows="4" placeholder="실제 세포와 다른 점을 생각해 보세요."></textarea>
+        </label>
+
+        <div class="checklist">
+          <p class="checklist-title">제출 전, 내 결론에 다음 내용이 들어 있는지 확인하세요.</p>
+          <label><input id="check1" type="checkbox" /> 내가 기록한 실험값이나 비교 결과를 1개 이상 썼다.</label>
+          <label><input id="check2" type="checkbox" /> 세포가 커질수록 표면적/부피 비가 어떻게 변하는지 설명했다.</label>
+          <label><input id="check3" type="checkbox" /> 그 변화가 물질 이동에 어떤 영향을 주며, 왜 세포 분열이 필요한지 설명했다.</label>
+        </div>
+
+        <div class="actions">
+          <button class="ghost prev-btn" data-prev="3" type="button">이전</button>
+          <button id="submitBtn" class="primary" type="button">최종 제출</button>
+        </div>
+        <p id="submitMessage" class="message" aria-live="polite"></p>
+      </section>
+
+      <section id="feedbackSection" class="panel feedback-panel hidden">
+        <div class="section-title compact">
+          <span class="step-badge">교사 평가</span>
+          <h2>선생님의 평가와 피드백</h2>
+          <p>교사가 평가를 저장하면 이곳에서 확인할 수 있습니다.</p>
+        </div>
+        <div class="feedback-summary feedback-only">
+          <div>
+            <strong>선생님이 작성한 피드백입니다.</strong>
+            <p>점수는 공개되지 않습니다.</p>
+          </div>
+          <div class="feedback-meta">
+            <span id="feedbackEvaluator">평가 교사: -</span>
+            <span id="feedbackDate">평가일: -</span>
+          </div>
+        </div>
+        <div class="teacher-comment">
+          <h3>선생님 피드백</h3>
+          <p id="feedbackText"></p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
