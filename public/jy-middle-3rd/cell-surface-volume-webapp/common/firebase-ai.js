@@ -29,7 +29,7 @@ async function getModel() {
     });
     const ai = getAI(app, { backend: new GoogleAIBackend() });
     return getGenerativeModel(ai, {
-      model: c.modelName || "gemini-2.5-flash",
+      model: c.modelName || "gemini-3.6-flash",
       generationConfig: {
         temperature: 0.15,
         responseMimeType: "application/json"
