@@ -299,6 +299,20 @@ function subscribeAuthorizedTeachers(callback, onError) {
   }, onError);
 }
 
+
+async function getTeacherManagedClasses(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized) return [];
+
+  const snap = await getDoc(doc(db, "authorizedTeachers", normalized));
+  if (!snap.exists()) return [];
+
+  const value = snap.data();
+  return Array.isArray(value.managedClasses)
+    ? value.managedClasses.map(String).filter(Boolean)
+    : [];
+}
+
 async function listAvailableClasses() {
   const snap = await new Promise((resolve, reject) => {
     const unsubscribe = onSnapshot(collection(db, "students"), (value) => {
@@ -459,6 +473,7 @@ window.firebaseDataReady = Promise.resolve({
   saveAuthorizedTeacher,
   deleteAuthorizedTeacher,
   subscribeAuthorizedTeachers,
+  getTeacherManagedClasses,
   listAvailableClasses,
   logout,
   onAuthStateChanged: (callback) => onAuthStateChanged(auth, callback),

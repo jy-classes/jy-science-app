@@ -1,4 +1,4 @@
-console.info("진케미 관리자 v17.1 로드됨");
+console.info("진케미 관리자 v17.2 로드됨");
 const $ = (id) => document.getElementById(id);
 let teachers = [];
 let classes = [];
@@ -29,7 +29,7 @@ function renderClassChoices(selected = []) {
         ${selected.includes(item.classKey) ? "checked" : ""} />
       ${esc(item.schoolYear)}학년도 ${esc(item.grade)}학년 ${esc(item.classLabel)}반
     </label>
-  `).join("") || "<p>학생 명단에 등록된 반이 없습니다.</p>";
+  `).join("") || "<p>jobchemy@gmail.com 계정에 관리반이 등록되어 있지 않습니다.</p>";
 }
 
 function renderTeachers() {
@@ -102,7 +102,18 @@ async function startAdmin(user) {
   $("adminView").classList.remove("hidden");
   $("logoutBtn").classList.remove("hidden");
 
-  classes = await api.listAvailableClasses();
+  const masterClassKeys = await api.getTeacherManagedClasses("jobchemy@gmail.com");
+
+  classes = masterClassKeys.map((classKey) => {
+    const [schoolYear = "", grade = "", classLabel = ""] = String(classKey).split("-");
+    return {
+      classKey,
+      schoolYear,
+      grade,
+      classLabel
+    };
+  });
+
   renderClassChoices([]);
 
   if (unsubscribeTeachers) unsubscribeTeachers();
