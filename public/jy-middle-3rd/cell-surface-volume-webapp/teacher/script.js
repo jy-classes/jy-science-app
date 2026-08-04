@@ -202,7 +202,7 @@ function renderDetail() {
               <div class="evaluation-heading">
                 <div>
                   <span class="stage-label">1차</span>
-                  <h3>AI 평가 및 피드백</h3>
+                  <h3>Gemini AI 평가 및 피드백</h3>
                   <p>AI가 루브릭별 점수와 피드백 초안을 제안합니다. 학생에게는 공개되지 않습니다.</p>
                 </div>
                 <strong id="aiTotal" class="live-total ai-total">${ev.aiEvaluation?.total ?? 0}점</strong>
@@ -218,7 +218,7 @@ function renderDetail() {
                 </div>
 
                 <label class="feedback-label">
-                  <span>AI 피드백 초안</span>
+                  <span>Gemini 피드백 초안</span>
                   <textarea id="aiFeedback" rows="10" readonly placeholder="AI 1차 평가를 실행하면 결과가 표시됩니다.">${esc(ev.aiEvaluation?.feedback ?? "")}</textarea>
                 </label>
 
@@ -368,15 +368,26 @@ function buildAiEvaluation(submission) {
   };
 }
 
-function runAiEvaluation() {
+async function runAiEvaluation() {
   const submission = selectedStudent()?.submission;
   if (!submission) {
     if ($("evalMessage")) $("evalMessage").textContent = "제출된 학생 자료를 먼저 선택해 주세요.";
     return;
   }
 
+  const button = $("runAiEvaluationBtn");
+
   try {
-    const aiEvaluation = buildAiEvaluation(submission);
+    if (typeof window.runGeminiScienceEvaluation !== "function") {
+      throw new Error("Firebase AI Logic 모듈이 아직 준비되지 않았습니다. 잠시 후 다시 실행해 주세요.");
+    }
+
+    button.disabled = true;
+    button.textContent = "Gemini 평가 중...";
+    $("evalMessage").textContent = "Firebase AI Logic을 통해 Gemini 1차 평가를 실행하고 있습니다.";
+
+    const aiEvaluation = await window.runGeminiScienceEvaluation(submission);
+
     const all = JSON.parse(localStorage.getItem("cellAppEvaluations") || "{}");
     const current = all[submission.id] || {};
     all[submission.id] = { ...current, aiEvaluation };
@@ -386,13 +397,24 @@ function runAiEvaluation() {
     renderSummary();
     renderList();
     renderDetail();
+
     if ($("evalMessage")) {
-      $("evalMessage").textContent = "AI 1차 평가가 완료되었습니다. 오른쪽의 교사 평가에서 검토해 주세요.";
+      $("evalMessage").textContent = "Gemini 1차 평가가 완료되었습니다. 교사가 내용을 검토해 주세요.";
     }
   } catch (error) {
-    console.error("AI evaluation failed:", error);
-    if ($("evalMessage")) {
-      $("evalMessage").textContent = "AI 1차 평가 중 오류가 발생했습니다. 페이지를 새로고침한 뒤 다시 실행해 주세요.";
+    console.error("Gemini evaluation failed:", error);
+    let message = error?.message || "Gemini 1차 평가 중 오류가 발생했습니다.";
+    if (/app.?check|recaptcha|403|permission/i.test(message)) {
+      message = "App Check 인증에 실패했습니다. reCAPTCHA 사이트 키와 등록 도메인을 확인해 주세요.";
+    }
+    if (/quota|429|resource exhausted/i.test(message)) {
+      message = "Gemini 무료 사용량을 초과했거나 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+    }
+    if ($("evalMessage")) $("evalMessage").textContent = message;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "AI 1차 평가 실행";
     }
   }
 }

@@ -1,0 +1,12 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 현재 v11은 localStorage 체험 구조입니다.
+    // 실제 학생 제출 데이터를 Firestore로 옮길 때
+    // 인증 및 권한 구조와 함께 규칙을 별도로 적용합니다.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
