@@ -11,6 +11,30 @@
     .teacher-login-card h1{margin:6px 0 12px}.teacher-login-card .primary{width:100%;margin-top:18px}
     .header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.header-actions span{font-size:13px}
     .hidden{display:none!important}
+
+    .roster-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 18px}
+    .roster-panel{background:#fff;border:1px solid #d8e0ef;border-radius:18px;padding:18px;margin-bottom:20px}
+    .roster-panel.hidden{display:none!important}
+    .roster-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .roster-head h2{margin:0}.roster-head p{margin:4px 0 0;color:#667085}
+    .roster-grid{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:10px}
+    .roster-grid label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+    .roster-grid input{min-width:0;padding:10px;border:1px solid #cfd8e8;border-radius:10px}
+    .roster-form-actions{display:flex;gap:8px;align-items:end}
+    .roster-message{min-height:22px;margin:10px 0;color:#176c3a}
+    .roster-message.error{color:#c62828}
+    .roster-table-wrap{overflow:auto;border:1px solid #e0e6f0;border-radius:12px}
+    .roster-table{width:100%;border-collapse:collapse;min-width:760px}
+    .roster-table th,.roster-table td{padding:10px 12px;border-bottom:1px solid #edf0f5;text-align:left;white-space:nowrap}
+    .roster-table th{background:#f7f9fc;font-size:13px}
+    .roster-table .actions{display:flex;gap:6px}
+    .small-btn{border:1px solid #cfd8e8;background:#fff;border-radius:8px;padding:6px 9px;cursor:pointer}
+    .small-btn.danger{color:#c62828;border-color:#f0b6b6}
+    .csv-box{margin-top:14px;padding:14px;background:#f7f9fc;border-radius:12px}
+    .csv-box textarea{width:100%;min-height:120px;padding:10px;border:1px solid #cfd8e8;border-radius:10px;box-sizing:border-box}
+    .csv-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+    @media(max-width:900px){.roster-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:560px){.roster-grid{grid-template-columns:1fr}.roster-form-actions{align-items:stretch}}
   </style>
 </head>
 <body>
@@ -54,6 +78,61 @@
       <div class="toolbar-actions">
         <button id="applyFilterBtn" class="primary" type="button">조회</button>
         <button id="exportExcelBtn" class="excel-btn" type="button">현재 반 엑셀 다운로드</button>
+      </div>
+    </section>
+
+
+    <section class="roster-toolbar">
+      <button id="toggleRosterBtn" class="ghost" type="button">학생 명단 관리</button>
+      <span id="registeredStudentCount">등록 학생 0명</span>
+    </section>
+
+    <section id="rosterPanel" class="roster-panel hidden">
+      <div class="roster-head">
+        <div>
+          <h2>학생 명단 관리</h2>
+          <p>학년도·학년·반·번호·이름·생년월일을 등록합니다.</p>
+        </div>
+        <button id="closeRosterBtn" class="ghost" type="button">닫기</button>
+      </div>
+
+      <form id="studentForm" class="roster-grid">
+        <input id="editingStudentUid" type="hidden" />
+        <label><span>학년도</span><input id="rosterYear" value="2026" required /></label>
+        <label><span>학년</span><input id="rosterGrade" value="3" required /></label>
+        <label><span>반</span><input id="rosterClass" inputmode="numeric" required /></label>
+        <label><span>번호</span><input id="rosterNumber" inputmode="numeric" required /></label>
+        <label><span>이름</span><input id="rosterName" required /></label>
+        <label><span>생년월일 8자리</span><input id="rosterBirthDate" inputmode="numeric" maxlength="8" placeholder="20120301" required /></label>
+        <div class="roster-form-actions">
+          <button id="saveStudentBtn" class="primary" type="submit">학생 등록</button>
+          <button id="cancelStudentEditBtn" class="ghost hidden" type="button">수정 취소</button>
+        </div>
+      </form>
+
+      <p id="rosterMessage" class="roster-message"></p>
+
+      <div class="csv-box">
+        <strong>여러 명 일괄 등록</strong>
+        <p>아래 형식으로 한 줄에 한 명씩 붙여넣으세요. 첫 줄 제목은 있어도 됩니다.</p>
+        <code>학년도,학년,반,번호,이름,생년월일</code>
+        <textarea id="csvRosterInput" placeholder="2026,3,1,1,홍길동,20120301&#10;2026,3,1,2,김과학,20120415"></textarea>
+        <div class="csv-actions">
+          <input id="csvFileInput" type="file" accept=".csv,text/csv" />
+          <button id="importCsvBtn" class="primary" type="button">붙여넣은 명단 등록</button>
+          <button id="downloadCsvTemplateBtn" class="ghost" type="button">CSV 양식 다운로드</button>
+        </div>
+      </div>
+
+      <div class="roster-head" style="margin-top:18px">
+        <div><h2>등록된 학생</h2></div>
+        <label>검색 <input id="rosterSearch" placeholder="반·번호·이름 검색" /></label>
+      </div>
+      <div class="roster-table-wrap">
+        <table class="roster-table">
+          <thead><tr><th>학년도</th><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>생년월일</th><th>관리</th></tr></thead>
+          <tbody id="rosterTableBody"><tr><td colspan="7">등록된 학생이 없습니다.</td></tr></tbody>
+        </table>
       </div>
     </section>
 

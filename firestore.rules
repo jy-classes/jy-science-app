@@ -15,7 +15,7 @@ service cloud.firestore {
       return signedIn()
         && request.auth.token.email_verified == true
         && request.auth.token.email in [
-          "jobchemy@gmail.com"
+          "여기에_교사_Google_이메일"
         ];
     }
 

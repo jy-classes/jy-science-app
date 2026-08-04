@@ -1,6 +1,7 @@
 
 const DEMO_STUDENTS = [
-  
+  { classLabel: "1", studentNumber: "1", birthDate: "20120301", name: "김가은", uid: "stu_demo_001" },
+  { classLabel: "1", studentNumber: "2", birthDate: "20120417", name: "박나연", uid: "stu_demo_002" }
 ];
 
 const state = {

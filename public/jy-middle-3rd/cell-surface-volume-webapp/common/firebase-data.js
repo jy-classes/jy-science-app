@@ -14,7 +14,8 @@ import {
   getDoc,
   collection,
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 function cfg() {
@@ -99,28 +100,72 @@ async function claimStudent(student) {
   return user;
 }
 
-async function ensureStudentRegistry(students) {
+function normalizeStudent(student) {
+  const schoolYear = String(student.schoolYear || "2026").trim();
+  const grade = String(student.grade || "3").trim();
+  const classLabel = String(student.classLabel || "").trim().replace(/반$/, "");
+  const studentNumber = String(student.studentNumber || "").trim().replace(/번$/, "");
+  const studentName = String(student.studentName || student.name || "").trim();
+  const birthDate = String(student.birthDate || "").replace(/\D/g, "");
+
+  if (!schoolYear || !grade || !classLabel || !studentNumber || !studentName) {
+    throw new Error("학년도, 학년, 반, 번호, 이름을 모두 입력해 주세요.");
+  }
+  if (!/^\d{8}$/.test(birthDate)) {
+    throw new Error("생년월일은 숫자 8자리로 입력해 주세요.");
+  }
+
+  const studentUid = String(
+    student.studentUid ||
+    `stu_${schoolYear}_${grade}_${classLabel}_${studentNumber}`
+  ).trim();
+
+  return {
+    studentUid,
+    schoolYear,
+    grade,
+    classLabel,
+    studentNumber,
+    studentName,
+    birthDate,
+    active: student.active !== false
+  };
+}
+
+async function saveRegisteredStudent(student) {
   const user = auth.currentUser;
-  if (!user || user.isAnonymous) {
-    throw new Error("교사 Google 로그인이 필요합니다.");
-  }
+  if (!user || user.isAnonymous) throw new Error("교사 Google 로그인이 필요합니다.");
 
+  const normalized = normalizeStudent(student);
+  await setDoc(doc(db, "students", normalized.studentUid), {
+    ...normalized,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  return normalized.studentUid;
+}
+
+async function ensureStudentRegistry(students) {
   for (const student of students) {
-    const studentUid = String(student.uid || student.studentUid || "");
-    if (!studentUid) continue;
-
-    await setDoc(doc(db, "students", studentUid), {
-      studentUid,
-      schoolYear: String(student.schoolYear || "2026"),
-      grade: String(student.grade || "3"),
-      classLabel: String(student.classLabel),
-      studentNumber: String(student.studentNumber),
-      studentName: String(student.name || student.studentName || ""),
-      birthDate: String(student.birthDate || ""),
-      active: true,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await saveRegisteredStudent(student);
   }
+}
+
+async function deleteRegisteredStudent(studentUid) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) throw new Error("교사 Google 로그인이 필요합니다.");
+  await deleteDoc(doc(db, "students", String(studentUid)));
+}
+
+function subscribeStudents(callback, onError) {
+  return onSnapshot(collection(db, "students"), (snap) => {
+    const students = snap.docs.map(plain).sort((a, b) =>
+      String(a.schoolYear).localeCompare(String(b.schoolYear), "ko", { numeric: true }) ||
+      String(a.grade).localeCompare(String(b.grade), "ko", { numeric: true }) ||
+      String(a.classLabel).localeCompare(String(b.classLabel), "ko", { numeric: true }) ||
+      String(a.studentNumber).localeCompare(String(b.studentNumber), "ko", { numeric: true })
+    );
+    callback(students);
+  }, onError);
 }
 
 async function saveSubmission(submission) {
@@ -213,6 +258,9 @@ window.firebaseDataReady = Promise.resolve({
   studentSignIn,
   claimStudent,
   ensureStudentRegistry,
+  saveRegisteredStudent,
+  deleteRegisteredStudent,
+  subscribeStudents,
   teacherSignIn,
   logout,
   onAuthStateChanged: (callback) => onAuthStateChanged(auth, callback),
