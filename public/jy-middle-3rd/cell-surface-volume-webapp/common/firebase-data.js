@@ -15,7 +15,9 @@ import {
   collection,
   onSnapshot,
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 function cfg() {
@@ -112,6 +114,7 @@ async function claimStudent(student) {
     birthDate,
     classLabel: String(student.classLabel),
     studentNumber: String(student.studentNumber),
+    classKey: String(registered.classKey || `${registered.schoolYear}-${registered.grade}-${registered.classLabel}`),
     claimedAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }, { merge: true });
@@ -139,11 +142,14 @@ function normalizeStudent(student) {
     `stu_${schoolYear}_${grade}_${classLabel}_${studentNumber}`
   ).trim();
 
+  const classKey = `${schoolYear}-${grade}-${classLabel}`;
+
   return {
     studentUid,
     schoolYear,
     grade,
     classLabel,
+    classKey,
     studentNumber,
     studentName,
     birthDate,
@@ -175,16 +181,149 @@ async function deleteRegisteredStudent(studentUid) {
   await deleteDoc(doc(db, "students", String(studentUid)));
 }
 
-function subscribeStudents(callback, onError) {
-  return onSnapshot(collection(db, "students"), (snap) => {
-    const students = snap.docs.map(plain).sort((a, b) =>
+function subscribeStudents(callback, onError, managedClasses = null) {
+  const classKeys = Array.isArray(managedClasses)
+    ? managedClasses.filter(Boolean)
+    : null;
+
+  if (!classKeys) {
+    return onSnapshot(collection(db, "students"), (snap) => {
+      const students = snap.docs.map(plain).sort((a, b) =>
+        String(a.schoolYear).localeCompare(String(b.schoolYear), "ko", { numeric: true }) ||
+        String(a.grade).localeCompare(String(b.grade), "ko", { numeric: true }) ||
+        String(a.classLabel).localeCompare(String(b.classLabel), "ko", { numeric: true }) ||
+        String(a.studentNumber).localeCompare(String(b.studentNumber), "ko", { numeric: true })
+      );
+      callback(students);
+    }, onError);
+  }
+
+  if (!classKeys.length) {
+    callback([]);
+    return () => {};
+  }
+
+  const byClass = new Map();
+  const emit = () => {
+    const merged = Array.from(byClass.values()).flat().sort((a, b) =>
       String(a.schoolYear).localeCompare(String(b.schoolYear), "ko", { numeric: true }) ||
       String(a.grade).localeCompare(String(b.grade), "ko", { numeric: true }) ||
       String(a.classLabel).localeCompare(String(b.classLabel), "ko", { numeric: true }) ||
       String(a.studentNumber).localeCompare(String(b.studentNumber), "ko", { numeric: true })
     );
-    callback(students);
+    callback(merged);
+  };
+
+  const unsubs = classKeys.map((classKey) =>
+    onSnapshot(
+      query(collection(db, "students"), where("classKey", "==", classKey)),
+      (snap) => {
+        byClass.set(classKey, snap.docs.map(plain));
+        emit();
+      },
+      onError
+    )
+  );
+
+  return () => unsubs.forEach((unsub) => unsub());
+}
+
+function teacherEmail(user = auth.currentUser) {
+  return String(user?.email || "").trim().toLowerCase();
+}
+
+async function verifyAdmin(user = auth.currentUser) {
+  const email = teacherEmail(user);
+  if (!email || user?.isAnonymous) return null;
+  const snap = await getDoc(doc(db, "admins", email));
+  if (!snap.exists() || snap.data().active === false) return null;
+  return { id: snap.id, ...snap.data(), email };
+}
+
+async function verifyAuthorizedTeacher(user = auth.currentUser) {
+  const email = teacherEmail(user);
+  if (!email || user?.isAnonymous) return null;
+
+  const snap = await getDoc(doc(db, "authorizedTeachers", email));
+  if (!snap.exists()) return null;
+
+  const profile = plain(snap);
+  if (profile.active === false) return null;
+
+  return {
+    ...profile,
+    email,
+    name: String(profile.name || user.displayName || email),
+    managedClasses: Array.isArray(profile.managedClasses)
+      ? profile.managedClasses.map(String)
+      : []
+  };
+}
+
+async function saveAuthorizedTeacher(teacher) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) throw new Error("관리자 로그인이 필요합니다.");
+
+  const email = String(teacher.email || "").trim().toLowerCase();
+  const name = String(teacher.name || "").trim();
+  const managedClasses = Array.isArray(teacher.managedClasses)
+    ? [...new Set(teacher.managedClasses.map(String).filter(Boolean))]
+    : [];
+
+  if (!email || !email.includes("@")) throw new Error("올바른 이메일을 입력해 주세요.");
+  if (!name) throw new Error("교사 이름을 입력해 주세요.");
+
+  await setDoc(doc(db, "authorizedTeachers", email), {
+    email,
+    name,
+    managedClasses,
+    active: teacher.active !== false,
+    updatedAt: serverTimestamp(),
+    updatedBy: teacherEmail(user)
+  }, { merge: true });
+
+  return email;
+}
+
+async function deleteAuthorizedTeacher(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  await deleteDoc(doc(db, "authorizedTeachers", normalized));
+}
+
+function subscribeAuthorizedTeachers(callback, onError) {
+  return onSnapshot(collection(db, "authorizedTeachers"), (snap) => {
+    const teachers = snap.docs
+      .map(plain)
+      .sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "ko"));
+    callback(teachers);
   }, onError);
+}
+
+async function listAvailableClasses() {
+  const snap = await new Promise((resolve, reject) => {
+    const unsubscribe = onSnapshot(collection(db, "students"), (value) => {
+      unsubscribe();
+      resolve(value);
+    }, reject);
+  });
+
+  const classes = new Map();
+  snap.docs.map(plain).forEach((student) => {
+    const classKey = String(
+      student.classKey ||
+      `${student.schoolYear}-${student.grade}-${student.classLabel}`
+    );
+    classes.set(classKey, {
+      classKey,
+      schoolYear: String(student.schoolYear),
+      grade: String(student.grade),
+      classLabel: String(student.classLabel)
+    });
+  });
+
+  return Array.from(classes.values()).sort((a, b) =>
+    a.classKey.localeCompare(b.classKey, "ko", { numeric: true })
+  );
 }
 
 async function saveSubmission(submission) {
@@ -202,6 +341,7 @@ async function saveSubmission(submission) {
     ...submission,
     id,
     ownerUid: user.uid,
+    classKey: String(submission.classKey || `${submission.schoolYear || "2026"}-${submission.grade || "3"}-${submission.classLabel}`),
     submittedAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }, { merge: true });
@@ -216,41 +356,72 @@ async function getPublishedFeedback(studentUid) {
   return data.publishedToStudent ? data : null;
 }
 
-function subscribeDashboard(callback, onError) {
-  let submissions = [];
-  let evaluations = new Map();
-  const emit = () => callback(submissions.map(s => ({
-    ...s,
-    evaluation: evaluations.get(s.id) || null
-  })));
+function subscribeDashboard(callback, onError, managedClasses = []) {
+  const classKeys = Array.isArray(managedClasses)
+    ? managedClasses.filter(Boolean)
+    : [];
 
-  const unsub1 = onSnapshot(collection(db, "submissions"), snap => {
-    submissions = snap.docs.map(plain);
-    emit();
-  }, onError);
+  if (!classKeys.length) {
+    callback([]);
+    return () => {};
+  }
 
-  const unsub2 = onSnapshot(collection(db, "evaluations"), snap => {
-    evaluations = new Map(snap.docs.map(d => [d.id, plain(d)]));
-    emit();
-  }, onError);
+  const submissionsByClass = new Map();
+  const evaluations = new Map();
 
-  return () => { unsub1(); unsub2(); };
+  const emit = () => {
+    const submissions = Array.from(submissionsByClass.values()).flat();
+    callback(submissions.map((submission) => ({
+      ...submission,
+      evaluation: evaluations.get(submission.id) || null
+    })));
+  };
+
+  const unsubs = [];
+
+  classKeys.forEach((classKey) => {
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, "submissions"), where("classKey", "==", classKey)),
+        (snap) => {
+          submissionsByClass.set(classKey, snap.docs.map(plain));
+          emit();
+        },
+        onError
+      )
+    );
+  });
+
+  unsubs.push(
+    onSnapshot(collection(db, "evaluations"), (snap) => {
+      evaluations = new Map(
+        snap.docs
+          .map((d) => [d.id, plain(d)])
+          .filter(([, evaluation]) => classKeys.includes(evaluation.classKey))
+      );
+      emit();
+    }, onError)
+  );
+
+  return () => unsubs.forEach((unsub) => unsub());
 }
 
-async function saveAiEvaluation(submissionId, ownerUid, aiEvaluation) {
+async function saveAiEvaluation(submissionId, ownerUid, classKey, aiEvaluation) {
   await setDoc(doc(db, "evaluations", String(submissionId)), {
     ownerUid,
+    classKey,
     aiEvaluation,
     updatedAt: serverTimestamp()
   }, { merge: true });
 }
 
-async function saveTeacherEvaluation(submissionId, ownerUid, evaluation, publish) {
+async function saveTeacherEvaluation(submissionId, ownerUid, classKey, evaluation, publish) {
   const user = auth.currentUser;
   const evaluatorName = user?.displayName || user?.email || "교사";
   const finalEvaluation = {
     ...evaluation,
     ownerUid,
+    classKey,
     evaluatorName,
     publishedToStudent: Boolean(publish),
     status: publish ? "final" : "draft",
@@ -263,6 +434,7 @@ async function saveTeacherEvaluation(submissionId, ownerUid, evaluation, publish
   if (publish) {
     await setDoc(doc(db, "feedback", String(submissionId)), {
       ownerUid,
+      classKey,
       feedback: evaluation.feedback || "",
       evaluatorName,
       publishedToStudent: true,
@@ -282,6 +454,12 @@ window.firebaseDataReady = Promise.resolve({
   deleteRegisteredStudent,
   subscribeStudents,
   teacherSignIn,
+  verifyAdmin,
+  verifyAuthorizedTeacher,
+  saveAuthorizedTeacher,
+  deleteAuthorizedTeacher,
+  subscribeAuthorizedTeachers,
+  listAvailableClasses,
   logout,
   onAuthStateChanged: (callback) => onAuthStateChanged(auth, callback),
   saveSubmission,

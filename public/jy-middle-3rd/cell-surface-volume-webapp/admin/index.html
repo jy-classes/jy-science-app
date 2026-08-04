@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>진케미 관리자</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Arial,"Noto Sans KR",sans-serif;background:#f4f7fb;color:#13213a}
+    header{display:flex;justify-content:space-between;align-items:center;padding:18px 26px;background:#fff;border-bottom:1px solid #dce4f1}
+    main{max-width:1100px;margin:24px auto;padding:0 18px}.card{background:#fff;border:1px solid #d8e0ef;border-radius:18px;padding:20px;margin-bottom:18px}
+    .hidden{display:none!important}button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}.primary{background:#3472ed;color:white}.ghost{background:white;border:1px solid #cfd8e8}
+    input{width:100%;padding:11px;border:1px solid #cfd8e8;border-radius:10px}.grid{display:grid;grid-template-columns:2fr 1.4fr;gap:12px}.classes{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+    .class-chip{display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #cfd8e8;border-radius:999px;background:#f8faff}
+    table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:11px;border-bottom:1px solid #edf0f5;text-align:left}th{background:#f7f9fc}.table-wrap{overflow:auto;border:1px solid #e0e6f0;border-radius:12px}
+    .message{min-height:24px;color:#176c3a}.error{color:#c62828}.actions{display:flex;gap:7px}.danger{color:#c62828}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header>
+  <div><strong>진케미 관리자</strong><div style="font-size:13px;color:#64748b">교사 계정과 관리반 설정</div></div>
+  <button id="logoutBtn" class="ghost hidden">로그아웃</button>
+</header>
+
+<main>
+  <section id="loginView" class="card">
+    <h1>관리자 Google 로그인</h1>
+    <p>Firebase의 admins 컬렉션에 등록된 관리자만 접근할 수 있습니다.</p>
+    <button id="loginBtn" class="primary">Google 로그인</button>
+    <p id="loginMessage" class="message"></p>
+  </section>
+
+  <section id="adminView" class="hidden">
+    <div class="card">
+      <h2>인증 교사 등록·수정</h2>
+      <form id="teacherForm">
+        <input id="editingEmail" type="hidden" />
+        <div class="grid">
+          <label>교사 이메일<input id="teacherEmail" type="email" required /></label>
+          <label>교사 이름<input id="teacherName" required /></label>
+        </div>
+        <h3>관리반 선택</h3>
+        <div id="classChoices" class="classes"></div>
+        <div class="actions">
+          <button class="primary" type="submit">저장</button>
+          <button id="cancelEditBtn" class="ghost hidden" type="button">수정 취소</button>
+        </div>
+      </form>
+      <p id="adminMessage" class="message"></p>
+    </div>
+
+    <div class="card">
+      <h2>인증 교사 목록</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>이메일</th><th>이름</th><th>관리반</th><th>관리</th></tr></thead>
+          <tbody id="teacherTable"><tr><td colspan="4">등록된 교사가 없습니다.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="../common/firebase-ai-config.js"></script>
+<script type="module" src="../common/firebase-data.js"></script>
+<script type="module" src="script.js"></script>
+</body>
+</html>

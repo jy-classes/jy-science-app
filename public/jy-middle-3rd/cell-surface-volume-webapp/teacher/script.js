@@ -6,183 +6,6 @@ let selectedKey = null;
 const $ = (id) => document.getElementById(id);
 
 
-function makeStudentUid(student) {
-  return `stu_${student.schoolYear}_${student.grade}_${student.classLabel}_${student.studentNumber}`;
-}
-
-function rosterValues() {
-  const student = {
-    schoolYear: $("rosterYear").value.trim(),
-    grade: $("rosterGrade").value.trim(),
-    classLabel: $("rosterClass").value.trim().replace(/반$/, ""),
-    studentNumber: $("rosterNumber").value.trim().replace(/번$/, ""),
-    studentName: $("rosterName").value.trim(),
-    birthDate: $("rosterBirthDate").value.replace(/\D/g, "")
-  };
-  student.studentUid = $("editingStudentUid").value || makeStudentUid(student);
-  return student;
-}
-
-function resetStudentForm() {
-  $("studentForm").reset();
-  $("rosterYear").value = $("yearFilter").value.trim() || "2026";
-  $("rosterGrade").value = "3";
-  $("editingStudentUid").value = "";
-  $("saveStudentBtn").textContent = "학생 등록";
-  $("cancelStudentEditBtn").classList.add("hidden");
-}
-
-function showRosterMessage(message, isError = false) {
-  const el = $("rosterMessage");
-  el.textContent = message;
-  el.classList.toggle("error", isError);
-}
-
-function renderRosterTable() {
-  const keyword = $("rosterSearch").value.trim().toLowerCase();
-  const rows = registeredStudents.filter((s) => {
-    if (!keyword) return true;
-    return [
-      s.schoolYear, s.grade, s.classLabel, s.studentNumber,
-      s.studentName, s.birthDate
-    ].some((value) => String(value || "").toLowerCase().includes(keyword));
-  });
-
-  $("registeredStudentCount").textContent = `등록 학생 ${registeredStudents.length}명`;
-
-  if (!rows.length) {
-    $("rosterTableBody").innerHTML =
-      '<tr><td colspan="7">등록된 학생이 없습니다.</td></tr>';
-    return;
-  }
-
-  $("rosterTableBody").innerHTML = rows.map((s) => `
-    <tr>
-      <td>${esc(s.schoolYear)}</td>
-      <td>${esc(s.grade)}</td>
-      <td>${esc(s.classLabel)}</td>
-      <td>${esc(s.studentNumber)}</td>
-      <td>${esc(s.studentName)}</td>
-      <td>${esc(s.birthDate)}</td>
-      <td class="actions">
-        <button type="button" class="small-btn edit-student-btn" data-uid="${esc(s.studentUid)}">수정</button>
-        <button type="button" class="small-btn danger delete-student-btn" data-uid="${esc(s.studentUid)}">삭제</button>
-      </td>
-    </tr>
-  `).join("");
-
-  document.querySelectorAll(".edit-student-btn").forEach((button) => {
-    button.addEventListener("click", () => editStudent(button.dataset.uid));
-  });
-  document.querySelectorAll(".delete-student-btn").forEach((button) => {
-    button.addEventListener("click", () => removeStudent(button.dataset.uid));
-  });
-}
-
-function editStudent(studentUid) {
-  const s = registeredStudents.find((item) => item.studentUid === studentUid);
-  if (!s) return;
-  $("editingStudentUid").value = s.studentUid;
-  $("rosterYear").value = s.schoolYear;
-  $("rosterGrade").value = s.grade;
-  $("rosterClass").value = s.classLabel;
-  $("rosterNumber").value = s.studentNumber;
-  $("rosterName").value = s.studentName;
-  $("rosterBirthDate").value = s.birthDate;
-  $("saveStudentBtn").textContent = "수정 저장";
-  $("cancelStudentEditBtn").classList.remove("hidden");
-  $("studentForm").scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-async function removeStudent(studentUid) {
-  const s = registeredStudents.find((item) => item.studentUid === studentUid);
-  if (!s) return;
-  const ok = confirm(
-    `${s.classLabel}반 ${s.studentNumber}번 ${s.studentName} 학생을 명단에서 삭제할까요?\n` +
-    "제출 자료와 평가는 자동으로 삭제되지 않습니다."
-  );
-  if (!ok) return;
-
-  try {
-    const dataApi = await window.firebaseDataReady;
-    await dataApi.deleteRegisteredStudent(studentUid);
-    showRosterMessage("학생 명단에서 삭제했습니다.");
-  } catch (error) {
-    showRosterMessage(`삭제 실패: ${error.message}`, true);
-  }
-}
-
-function parseCsvLine(line) {
-  const values = [];
-  let current = "";
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (quoted && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (ch === "," && !quoted) {
-      values.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  values.push(current.trim());
-  return values;
-}
-
-function parseRosterCsv(text) {
-  const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
-  const students = [];
-  lines.forEach((line, index) => {
-    const cols = parseCsvLine(line);
-    if (index === 0 && /학년도|school/i.test(cols.join(" "))) return;
-    if (cols.length < 6) {
-      throw new Error(`${index + 1}번째 줄은 6개 항목이 필요합니다.`);
-    }
-    const student = {
-      schoolYear: cols[0],
-      grade: cols[1],
-      classLabel: cols[2],
-      studentNumber: cols[3],
-      studentName: cols[4],
-      birthDate: cols[5].replace(/\D/g, "")
-    };
-    student.studentUid = makeStudentUid(student);
-    students.push(student);
-  });
-  return students;
-}
-
-async function importRoster() {
-  try {
-    const students = parseRosterCsv($("csvRosterInput").value);
-    if (!students.length) throw new Error("등록할 학생 명단이 없습니다.");
-    const dataApi = await window.firebaseDataReady;
-    await dataApi.ensureStudentRegistry(students);
-    showRosterMessage(`${students.length}명의 학생을 등록했습니다.`);
-    $("csvRosterInput").value = "";
-  } catch (error) {
-    showRosterMessage(`일괄 등록 실패: ${error.message}`, true);
-  }
-}
-
-function downloadCsvTemplate() {
-  const content = "\uFEFF학년도,학년,반,번호,이름,생년월일\n2026,3,1,1,홍길동,20120301\n";
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "학생명단_등록양식.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function loadSubmissions() {
   // Firestore 실시간 구독에서 submissions 배열을 갱신합니다.
 }
@@ -560,7 +383,7 @@ async function runAiEvaluation() {
     const aiEvaluation = await window.runGeminiScienceEvaluation(submission);
 
     const dataApi = await window.firebaseDataReady;
-    await dataApi.saveAiEvaluation(submission.id, submission.ownerUid, aiEvaluation);
+    await dataApi.saveAiEvaluation(submission.id, submission.ownerUid, submission.classKey, aiEvaluation);
 
     if ($("evalMessage")) {
       $("evalMessage").textContent = "Gemini 1차 평가가 완료되었습니다. 교사가 내용을 검토해 주세요.";
@@ -676,22 +499,44 @@ let unsubscribeDashboard = null;
 let unsubscribeStudents = null;
 
 async function startTeacherApp(user) {
+  const dataApi = await window.firebaseDataReady;
+  const profile = await dataApi.verifyAuthorizedTeacher(user);
+
+  if (!profile) {
+    await dataApi.logout();
+    $("teacherLoginView").classList.remove("hidden");
+    $("teacherAppView").classList.add("hidden");
+    $("teacherLoginMessage").textContent =
+      "이 Google 계정은 인증 교사 목록에 등록되어 있지 않습니다.";
+    return;
+  }
+
+  const managedClasses = profile.managedClasses || [];
+  if (!managedClasses.length) {
+    await dataApi.logout();
+    $("teacherLoginView").classList.remove("hidden");
+    $("teacherAppView").classList.add("hidden");
+    $("teacherLoginMessage").textContent =
+      "관리자가 이 교사의 관리반을 아직 지정하지 않았습니다.";
+    return;
+  }
+
   $("teacherLoginView").classList.add("hidden");
   $("teacherAppView").classList.remove("hidden");
-  $("teacherAccount").textContent = user.email || user.displayName || "교사";
+  $("teacherAccount").textContent = profile.name || user.displayName || user.email;
+  $("managedClassLabel").textContent =
+    `관리반: ${managedClasses.map((key) => key.split("-").at(-1) + "반").join(", ")}`;
 
-  const dataApi = await window.firebaseDataReady;
   if (unsubscribeDashboard) unsubscribeDashboard();
   if (unsubscribeStudents) unsubscribeStudents();
 
   unsubscribeStudents = dataApi.subscribeStudents((students) => {
     registeredStudents = students;
-    renderRosterTable();
     refreshAll();
   }, (error) => {
     console.error("Firestore students error", error);
-    showRosterMessage(`학생 명단을 불러오지 못했습니다: ${error.message}`, true);
-  });
+    alert(`학생 명단을 불러오지 못했습니다: ${error.message}`);
+  }, managedClasses);
 
   unsubscribeDashboard = dataApi.subscribeDashboard((items) => {
     submissions = items;
@@ -699,14 +544,22 @@ async function startTeacherApp(user) {
   }, (error) => {
     console.error("Firestore dashboard error", error);
     alert(`학생 자료를 불러오지 못했습니다: ${error.message}`);
-  });
+  }, managedClasses);
 }
-
 async function initializeTeacherAuth() {
   const dataApi = await window.firebaseDataReady;
-  dataApi.onAuthStateChanged((user) => {
+  dataApi.onAuthStateChanged(async (user) => {
     if (user && !user.isAnonymous) {
-      startTeacherApp(user);
+      try {
+        await startTeacherApp(user);
+      } catch (error) {
+        console.error("Teacher authorization failed", error);
+        await dataApi.logout();
+        $("teacherLoginView").classList.remove("hidden");
+        $("teacherAppView").classList.add("hidden");
+        $("teacherLoginMessage").textContent =
+          `교사 인증 실패: ${error.message}`;
+      }
     } else {
       $("teacherLoginView").classList.remove("hidden");
       $("teacherAppView").classList.add("hidden");
@@ -726,6 +579,7 @@ async function initializeTeacherAuth() {
   $("teacherLogoutBtn").addEventListener("click", async () => {
     if (unsubscribeDashboard) unsubscribeDashboard();
     if (unsubscribeStudents) unsubscribeStudents();
+    if (unsubscribeAuthorizedTeachers) unsubscribeAuthorizedTeachers();
     await dataApi.logout();
   });
 }
@@ -733,36 +587,5 @@ async function initializeTeacherAuth() {
 $("refreshBtn").addEventListener("click",refreshAll);
 $("applyFilterBtn").addEventListener("click",()=>{selectedKey=null;renderSummary();renderList();});
 $("exportExcelBtn").addEventListener("click",exportCurrentClassExcel);
-
-$("toggleRosterBtn").addEventListener("click", () => {
-  $("rosterPanel").classList.toggle("hidden");
-});
-$("closeRosterBtn").addEventListener("click", () => {
-  $("rosterPanel").classList.add("hidden");
-});
-$("cancelStudentEditBtn").addEventListener("click", resetStudentForm);
-$("rosterSearch").addEventListener("input", renderRosterTable);
-$("studentForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    const dataApi = await window.firebaseDataReady;
-    const student = rosterValues();
-    await dataApi.saveRegisteredStudent(student);
-    showRosterMessage(
-      $("editingStudentUid").value ? "학생 정보를 수정했습니다." : "학생을 등록했습니다."
-    );
-    resetStudentForm();
-  } catch (error) {
-    showRosterMessage(`저장 실패: ${error.message}`, true);
-  }
-});
-$("importCsvBtn").addEventListener("click", importRoster);
-$("downloadCsvTemplateBtn").addEventListener("click", downloadCsvTemplate);
-$("csvFileInput").addEventListener("change", async (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  $("csvRosterInput").value = await file.text();
-  showRosterMessage("CSV 파일을 불러왔습니다. '붙여넣은 명단 등록'을 눌러 주세요.");
-});
 
 initializeTeacherAuth();

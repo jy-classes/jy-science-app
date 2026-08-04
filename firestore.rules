@@ -11,12 +11,34 @@ service cloud.firestore {
         && request.auth.token.firebase.sign_in_provider == "anonymous";
     }
 
+    function email() {
+      return request.auth.token.email;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && email() != null
+        && exists(/databases/$(database)/documents/admins/$(email()))
+        && get(/databases/$(database)/documents/admins/$(email())).data.active == true;
+    }
+
+    function teacherDoc() {
+      return get(/databases/$(database)/documents/authorizedTeachers/$(email()));
+    }
+
     function isTeacher() {
       return signedIn()
-        && request.auth.token.email_verified == true
-        && request.auth.token.email in [
-          "여기에_교사_Google_이메일"
-        ];
+        && email() != null
+        && exists(/databases/$(database)/documents/authorizedTeachers/$(email()))
+        && teacherDoc().data.active == true;
+    }
+
+    function canManageClass(classKey) {
+      return isAdmin()
+        || (
+          isTeacher()
+          && classKey in teacherDoc().data.managedClasses
+        );
     }
 
     function registeredStudent(studentUid) {
@@ -27,9 +49,21 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/studentSessions/$(studentUid));
     }
 
+    match /admins/{adminEmail} {
+      allow get: if signedIn() && email() == adminEmail;
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    match /authorizedTeachers/{teacherEmail} {
+      allow get: if signedIn() && email() == teacherEmail;
+      allow list, create, update, delete: if isAdmin();
+    }
+
     match /students/{studentUid} {
-      allow read: if signedIn();
-      allow create, update, delete: if isTeacher();
+      allow get: if signedIn();
+      allow list: if isAdmin()
+        || canManageClass(resource.data.classKey);
+      allow create, update, delete: if isAdmin();
     }
 
     match /studentSessions/{studentUid} {
@@ -40,32 +74,51 @@ service cloud.firestore {
         && request.resource.data.classLabel == registeredStudent(studentUid).data.classLabel
         && request.resource.data.studentNumber == registeredStudent(studentUid).data.studentNumber;
 
-      allow read: if isTeacher()
+      allow read: if canManageClass(resource.data.classKey)
         || (signedIn() && resource.data.ownerUid == request.auth.uid);
 
-      allow delete: if isTeacher();
+      allow delete: if isAdmin();
     }
 
     match /submissions/{studentUid} {
       allow create, update: if isAnonymous()
         && currentSession(studentUid).data.ownerUid == request.auth.uid
         && request.resource.data.studentUid == studentUid
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.classKey == currentSession(studentUid).data.classKey;
 
-      allow read: if isTeacher()
-        || (signedIn() && currentSession(studentUid).data.ownerUid == request.auth.uid);
+      allow read: if canManageClass(resource.data.classKey)
+        || (
+          signedIn()
+          && currentSession(studentUid).data.ownerUid == request.auth.uid
+        );
 
-      allow delete: if isTeacher();
+      allow delete: if isAdmin();
     }
 
     match /evaluations/{studentUid} {
-      allow read, write: if isTeacher();
+      allow read, create, update: if canManageClass(
+        request.method == "create"
+          ? request.resource.data.classKey
+          : resource.data.classKey
+      );
+      allow delete: if isAdmin();
     }
 
     match /feedback/{studentUid} {
-      allow read: if isTeacher()
-        || (signedIn() && currentSession(studentUid).data.ownerUid == request.auth.uid);
-      allow write: if isTeacher();
+      allow read: if canManageClass(resource.data.classKey)
+        || (
+          signedIn()
+          && currentSession(studentUid).data.ownerUid == request.auth.uid
+        );
+
+      allow create, update: if canManageClass(
+        request.method == "create"
+          ? request.resource.data.classKey
+          : resource.data.classKey
+      );
+
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {
