@@ -8,5 +8,5 @@ window.JY_FIREBASE_AI_CONFIG = {
     appId: "1:28413671301:web:13807d2e56b6cb7afef6ec",
   },
   recaptchaSiteKey: "6LeZUXQtAAAAAGIueP1fflci2YUO0K_5TGjl19Bq",
-  modelName: "gemini-2.5-flash"
+  modelName: "gemini-3.6-flash"
 };
