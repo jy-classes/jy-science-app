@@ -199,7 +199,7 @@ async function login() {
 
   try {
     const dataApi = await window.firebaseDataReady;
-    await dataApi.studentSignIn();
+    await dataApi.claimStudent(student);
   } catch (error) {
     els.loginMessage.textContent = `Firebase 로그인 실패: ${error.message}`;
     return;
@@ -231,7 +231,7 @@ async function restoreSession() {
   if (!student) return;
   try {
     const dataApi = await window.firebaseDataReady;
-    await dataApi.studentSignIn();
+    await dataApi.claimStudent(student);
   } catch (error) {
     console.error("Anonymous auth failed", error);
     return;

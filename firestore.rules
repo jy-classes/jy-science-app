@@ -6,6 +6,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAnonymous() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == "anonymous";
+    }
+
     function isTeacher() {
       return signedIn()
         && request.auth.token.email_verified == true
@@ -14,14 +19,41 @@ service cloud.firestore {
         ];
     }
 
-    match /submissions/{studentUid} {
-      allow create: if signedIn()
-        && request.auth.token.firebase.sign_in_provider == "anonymous"
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.studentUid == studentUid;
+    function registeredStudent(studentUid) {
+      return get(/databases/$(database)/documents/students/$(studentUid));
+    }
 
-      allow read, update: if isTeacher()
+    function currentSession(studentUid) {
+      return get(/databases/$(database)/documents/studentSessions/$(studentUid));
+    }
+
+    match /students/{studentUid} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    match /studentSessions/{studentUid} {
+      allow create, update: if isAnonymous()
+        && request.resource.data.studentUid == studentUid
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.birthDate == registeredStudent(studentUid).data.birthDate
+        && request.resource.data.classLabel == registeredStudent(studentUid).data.classLabel
+        && request.resource.data.studentNumber == registeredStudent(studentUid).data.studentNumber;
+
+      allow read: if isTeacher()
         || (signedIn() && resource.data.ownerUid == request.auth.uid);
+
+      allow delete: if isTeacher();
+    }
+
+    match /submissions/{studentUid} {
+      allow create, update: if isAnonymous()
+        && currentSession(studentUid).data.ownerUid == request.auth.uid
+        && request.resource.data.studentUid == studentUid
+        && request.resource.data.ownerUid == request.auth.uid;
+
+      allow read: if isTeacher()
+        || (signedIn() && currentSession(studentUid).data.ownerUid == request.auth.uid);
 
       allow delete: if isTeacher();
     }
@@ -32,7 +64,7 @@ service cloud.firestore {
 
     match /feedback/{studentUid} {
       allow read: if isTeacher()
-        || (signedIn() && resource.data.ownerUid == request.auth.uid);
+        || (signedIn() && currentSession(studentUid).data.ownerUid == request.auth.uid);
       allow write: if isTeacher();
     }
 

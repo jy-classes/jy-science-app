@@ -1,4 +1,26 @@
 let submissions = [];
+
+const DEMO_STUDENT_ACCOUNTS = [
+  {
+    schoolYear: "2026",
+    grade: "3",
+    classLabel: "1",
+    studentNumber: "1",
+    studentName: "김가은",
+    birthDate: "20120301",
+    studentUid: "stu_demo_001"
+  },
+  {
+    schoolYear: "2026",
+    grade: "3",
+    classLabel: "1",
+    studentNumber: "2",
+    studentName: "박나연",
+    birthDate: "20120417",
+    studentUid: "stu_demo_002"
+  }
+];
+
 let selectedKey = null;
 
 const $ = (id) => document.getElementById(id);
@@ -507,6 +529,7 @@ async function startTeacherApp(user) {
   $("teacherAccount").textContent = user.email || user.displayName || "교사";
 
   const dataApi = await window.firebaseDataReady;
+  await dataApi.ensureStudentRegistry(DEMO_STUDENT_ACCOUNTS);
   if (unsubscribeDashboard) unsubscribeDashboard();
   unsubscribeDashboard = dataApi.subscribeDashboard((items) => {
     submissions = items;
