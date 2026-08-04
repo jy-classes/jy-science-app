@@ -1,8 +1,5 @@
 
-const DEMO_STUDENTS = [
-  { classLabel: "1", studentNumber: "1", birthDate: "20120301", name: "김가은", uid: "stu_demo_001" },
-  { classLabel: "1", studentNumber: "2", birthDate: "20120417", name: "박나연", uid: "stu_demo_002" }
-];
+const DEMO_STUDENTS = [];
 
 const state = {
   student: null,
@@ -186,37 +183,40 @@ async function login() {
     return;
   }
 
-  const student = DEMO_STUDENTS.find((s) =>
-    s.classLabel === classLabel &&
-    s.studentNumber === studentNumber &&
-    s.birthDate === birthDate
-  );
-
-  if (!student) {
-    els.loginMessage.textContent = "입력한 학생 정보를 확인할 수 없습니다.";
-    return;
-  }
+  els.loginBtn.disabled = true;
+  els.loginMessage.textContent = "등록 학생 정보를 확인하고 있습니다.";
 
   try {
     const dataApi = await window.firebaseDataReady;
-    await dataApi.claimStudent(student);
-  } catch (error) {
-    els.loginMessage.textContent = `Firebase 로그인 실패: ${error.message}`;
-    return;
-  }
+    const studentUid = `stu_2026_3_${classLabel}_${studentNumber}`;
+    const student = await dataApi.getRegisteredStudent(studentUid);
 
-  state.student = student;
-  sessionStorage.setItem("cellAppSession", student.uid);
-  els.loginView.classList.add("hidden");
-  els.appView.classList.remove("hidden");
-  els.logoutBtn.classList.remove("hidden");
-  els.studentLabel.textContent = `3학년 ${student.classLabel}반 ${student.studentNumber}번`;
-  els.studentName.textContent = student.name;
-  loadDraft();
-  renderSimulation();
-  renderRecords();
-  renderTeacherFeedback();
-  goToStep(1);
+    if (!student) {
+      throw new Error("등록된 학생 정보가 없습니다. 교사용 화면에서 학생 명단을 확인해 주세요.");
+    }
+
+    student.birthDate = birthDate;
+    await dataApi.claimStudent(student);
+
+    state.student = student;
+    sessionStorage.setItem("cellAppSession", student.uid);
+    els.loginView.classList.add("hidden");
+    els.appView.classList.remove("hidden");
+    els.logoutBtn.classList.remove("hidden");
+    els.studentLabel.textContent = `${student.grade}학년 ${student.classLabel}반 ${student.studentNumber}번`;
+    els.studentName.textContent = student.name;
+    els.loginMessage.textContent = "";
+    loadDraft();
+    renderSimulation();
+    renderRecords();
+    await renderTeacherFeedback();
+    goToStep(1);
+  } catch (error) {
+    console.error("Student login failed", error);
+    els.loginMessage.textContent = `Firebase 로그인 실패: ${error.message}`;
+  } finally {
+    els.loginBtn.disabled = false;
+  }
 }
 
 function logout() {
@@ -227,25 +227,41 @@ function logout() {
 
 async function restoreSession() {
   const uid = sessionStorage.getItem("cellAppSession");
-  const student = DEMO_STUDENTS.find((s) => s.uid === uid);
-  if (!student) return;
+  if (!uid) return;
+
   try {
     const dataApi = await window.firebaseDataReady;
-    await dataApi.claimStudent(student);
+    const registered = await dataApi.getRegisteredStudent(uid);
+    if (!registered) {
+      sessionStorage.removeItem("cellAppSession");
+      return;
+    }
+
+    const draftRaw = localStorage.getItem(`cellApp_${uid}`);
+    const draftStudent = draftRaw ? JSON.parse(draftRaw)?.student : null;
+    registered.birthDate = draftStudent?.birthDate || "";
+
+    if (!registered.birthDate) {
+      sessionStorage.removeItem("cellAppSession");
+      return;
+    }
+
+    await dataApi.claimStudent(registered);
+    state.student = registered;
+    els.loginView.classList.add("hidden");
+    els.appView.classList.remove("hidden");
+    els.logoutBtn.classList.remove("hidden");
+    els.studentLabel.textContent =
+      `${registered.grade}학년 ${registered.classLabel}반 ${registered.studentNumber}번`;
+    els.studentName.textContent = registered.name;
+    loadDraft();
+    renderSimulation();
+    renderRecords();
+    await renderTeacherFeedback();
   } catch (error) {
-    console.error("Anonymous auth failed", error);
-    return;
+    console.error("Session restore failed", error);
+    sessionStorage.removeItem("cellAppSession");
   }
-  state.student = student;
-  els.loginView.classList.add("hidden");
-  els.appView.classList.remove("hidden");
-  els.logoutBtn.classList.remove("hidden");
-  els.studentLabel.textContent = `3학년 ${student.classLabel}반 ${student.studentNumber}번`;
-  els.studentName.textContent = student.name;
-  loadDraft();
-  renderSimulation();
-  renderRecords();
-  renderTeacherFeedback();
 }
 
 els.loginBtn.addEventListener("click", login);

@@ -64,6 +64,25 @@ async function logout() {
   await signOut(auth);
 }
 
+async function getRegisteredStudent(studentUid) {
+  await studentSignIn();
+  const snap = await getDoc(doc(db, "students", String(studentUid)));
+  if (!snap.exists()) return null;
+
+  const student = plain(snap);
+  return {
+    uid: student.studentUid || snap.id,
+    studentUid: student.studentUid || snap.id,
+    schoolYear: String(student.schoolYear || "2026"),
+    grade: String(student.grade || "3"),
+    classLabel: String(student.classLabel || ""),
+    studentNumber: String(student.studentNumber || ""),
+    name: String(student.studentName || ""),
+    studentName: String(student.studentName || ""),
+    birthDate: String(student.birthDate || "")
+  };
+}
+
 async function claimStudent(student) {
   const user = await studentSignIn();
   const studentUid = String(student.uid || student.studentUid || "");
@@ -256,6 +275,7 @@ window.firebaseDataReady = Promise.resolve({
   auth,
   db,
   studentSignIn,
+  getRegisteredStudent,
   claimStudent,
   ensureStudentRegistry,
   saveRegisteredStudent,
