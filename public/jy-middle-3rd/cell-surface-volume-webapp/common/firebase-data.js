@@ -466,5 +466,4 @@ window.firebaseDataReady = Promise.resolve({
   getPublishedFeedback,
   subscribeDashboard,
   saveAiEvaluation,
-  saveTeacherEvaluation
-});
+  saveTeacherEvaluation});

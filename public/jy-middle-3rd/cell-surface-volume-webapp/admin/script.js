@@ -1,3 +1,4 @@
+console.info("진케미 관리자 v17.1 로드됨");
 const $ = (id) => document.getElementById(id);
 let teachers = [];
 let classes = [];
