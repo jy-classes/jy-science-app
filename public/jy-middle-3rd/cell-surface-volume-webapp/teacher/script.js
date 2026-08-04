@@ -23,9 +23,7 @@ const DEMO_ROSTER = Array.from({ length: 6 }, (_, classIndex) =>
 ).flat();
 
 function loadSubmissions() {
-  submissions = JSON.parse(localStorage.getItem("cellAppSubmissions") || "[]");
-  const evaluations = JSON.parse(localStorage.getItem("cellAppEvaluations") || "{}");
-  submissions = submissions.map((s) => ({ ...s, evaluation: evaluations[s.id] || null }));
+  // Firestore 실시간 구독에서 submissions 배열을 갱신합니다.
 }
 
 function studentKey(item) {
@@ -388,15 +386,8 @@ async function runAiEvaluation() {
 
     const aiEvaluation = await window.runGeminiScienceEvaluation(submission);
 
-    const all = JSON.parse(localStorage.getItem("cellAppEvaluations") || "{}");
-    const current = all[submission.id] || {};
-    all[submission.id] = { ...current, aiEvaluation };
-    localStorage.setItem("cellAppEvaluations", JSON.stringify(all));
-
-    loadSubmissions();
-    renderSummary();
-    renderList();
-    renderDetail();
+    const dataApi = await window.firebaseDataReady;
+    await dataApi.saveAiEvaluation(submission.id, submission.ownerUid, aiEvaluation);
 
     if ($("evalMessage")) {
       $("evalMessage").textContent = "Gemini 1차 평가가 완료되었습니다. 교사가 내용을 검토해 주세요.";
@@ -421,8 +412,7 @@ async function runAiEvaluation() {
 
 function applyAiEvaluation() {
   const submission = selectedStudent()?.submission;
-  const evaluations = JSON.parse(localStorage.getItem("cellAppEvaluations") || "{}");
-  const ai = evaluations[submission?.id]?.aiEvaluation;
+  const ai = submission?.evaluation?.aiEvaluation;
   if (!ai) {
     $("evalMessage").textContent = "먼저 AI 1차 평가를 실행해 주세요.";
     return;
@@ -435,13 +425,12 @@ function applyAiEvaluation() {
   $("score5").value = ai.score5;
   $("teacherFeedback").value = ai.feedback
     .replace("【AI가 찾은 강점】", "【잘한 점】")
-    .replace("【AI가 제안한 보완점】", "【보완할 점】")
-    .replace("\n\n※ 이 평가는 AI의 1차 제안이며, 최종 평가는 교사가 확정합니다.", "");
+    .replace("【AI가 제안한 보완점】", "【보완할 점】");
   updateLiveTotal();
   $("evalMessage").textContent = "AI 결과를 교사 평가 영역에 복사했습니다. 반드시 검토·수정한 뒤 저장하세요.";
 }
 
-function saveEvaluation(publishToStudent = true) {
+async function saveEvaluation(publishToStudent = true) {
   const s = selectedStudent()?.submission;
   if (!s) return;
 
@@ -455,42 +444,25 @@ function saveEvaluation(publishToStudent = true) {
   }
 
   const values = rawValues.map(Number);
-  const invalid = values.some((value, index) =>
-    Number.isNaN(value) || value < 0 || value > limits[index]
-  );
-  if (invalid) {
+  if (values.some((value, index) => Number.isNaN(value) || value < 0 || value > limits[index])) {
     $("evalMessage").textContent = "각 영역의 배점 범위 안에서 점수를 입력해 주세요.";
     return;
   }
 
-  const all = JSON.parse(localStorage.getItem("cellAppEvaluations") || "{}");
-  const existing = all[s.id] || {};
-  const evaluation = {
-    ...existing,
-    score1: values[0],
-    score2: values[1],
-    score3: values[2],
-    score4: values[3],
-    score5: values[4],
-    total: values.reduce((a, b) => a + b, 0),
-    feedback: $("teacherFeedback").value.trim(),
-    evaluatedAt: new Date().toISOString(),
-    evaluatorName: "교사",
-    publishedToStudent: publishToStudent,
-    status: publishToStudent ? "final" : "draft"
-  };
-
-  all[s.id] = evaluation;
-  localStorage.setItem("cellAppEvaluations", JSON.stringify(all));
-  loadSubmissions();
-  renderSummary();
-  renderList();
-  renderDetail();
-
-  if ($("evalMessage")) {
+  try {
+    $("evalMessage").textContent = publishToStudent ? "최종 평가를 저장하고 있습니다..." : "임시 저장하고 있습니다...";
+    const dataApi = await window.firebaseDataReady;
+    await dataApi.saveTeacherEvaluation(s.id, s.ownerUid, {
+      score1: values[0], score2: values[1], score3: values[2], score4: values[3], score5: values[4],
+      total: values.reduce((a, b) => a + b, 0),
+      feedback: $("teacherFeedback").value.trim()
+    }, publishToStudent);
     $("evalMessage").textContent = publishToStudent
       ? "교사 최종 평가가 저장되었고 피드백이 학생에게 공개되었습니다."
       : "교사 평가가 임시 저장되었습니다. 학생에게는 아직 공개되지 않습니다.";
+  } catch (error) {
+    console.error("Evaluation save failed", error);
+    $("evalMessage").textContent = `저장 실패: ${error.message}`;
   }
 }
 
@@ -521,8 +493,58 @@ function exportCurrentClassExcel() {
   const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`${year}학년도_3학년_${cls}반_세포탐구_전체학생.xls`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
 
-function refreshAll(){loadSubmissions();renderSummary();renderList();if(selectedKey)renderDetail();}
+function refreshAll(){
+  renderSummary();
+  renderList();
+  if(selectedKey) renderDetail();
+}
+
+let unsubscribeDashboard = null;
+
+async function startTeacherApp(user) {
+  $("teacherLoginView").classList.add("hidden");
+  $("teacherAppView").classList.remove("hidden");
+  $("teacherAccount").textContent = user.email || user.displayName || "교사";
+
+  const dataApi = await window.firebaseDataReady;
+  if (unsubscribeDashboard) unsubscribeDashboard();
+  unsubscribeDashboard = dataApi.subscribeDashboard((items) => {
+    submissions = items;
+    refreshAll();
+  }, (error) => {
+    console.error("Firestore dashboard error", error);
+    alert(`학생 자료를 불러오지 못했습니다: ${error.message}`);
+  });
+}
+
+async function initializeTeacherAuth() {
+  const dataApi = await window.firebaseDataReady;
+  dataApi.onAuthStateChanged((user) => {
+    if (user && !user.isAnonymous) {
+      startTeacherApp(user);
+    } else {
+      $("teacherLoginView").classList.remove("hidden");
+      $("teacherAppView").classList.add("hidden");
+    }
+  });
+
+  $("teacherLoginBtn").addEventListener("click", async () => {
+    try {
+      $("teacherLoginMessage").textContent = "Google 로그인 창을 여는 중입니다...";
+      await dataApi.teacherSignIn();
+      $("teacherLoginMessage").textContent = "";
+    } catch (error) {
+      $("teacherLoginMessage").textContent = `로그인 실패: ${error.message}`;
+    }
+  });
+
+  $("teacherLogoutBtn").addEventListener("click", async () => {
+    if (unsubscribeDashboard) unsubscribeDashboard();
+    await dataApi.logout();
+  });
+}
+
 $("refreshBtn").addEventListener("click",refreshAll);
 $("applyFilterBtn").addEventListener("click",()=>{selectedKey=null;renderSummary();renderList();});
 $("exportExcelBtn").addEventListener("click",exportCurrentClassExcel);
-refreshAll();
+initializeTeacherAuth();

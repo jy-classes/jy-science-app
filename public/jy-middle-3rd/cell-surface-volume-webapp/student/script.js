@@ -144,29 +144,23 @@ function renderRecords() {
 }
 
 
-function renderTeacherFeedback() {
+async function renderTeacherFeedback() {
   if (!state.student) return;
-  const submissions = JSON.parse(localStorage.getItem("cellAppSubmissions") || "[]");
-  const evaluations = JSON.parse(localStorage.getItem("cellAppEvaluations") || "{}");
-  const latest = submissions
-    .filter((s) => s.studentUid === state.student.uid)
-    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
-
-  if (!latest) {
+  try {
+    const dataApi = await window.firebaseDataReady;
+    const ev = await dataApi.getPublishedFeedback(state.student.uid);
+    if (!ev || state.currentStep !== 1) {
+      els.feedbackSection.classList.add("hidden");
+      return;
+    }
+    els.feedbackSection.classList.remove("hidden");
+    els.feedbackEvaluator.textContent = `평가 교사: ${ev.evaluatorName || "교사"}`;
+    els.feedbackDate.textContent = `평가일: ${ev.evaluatedAt ? new Date(ev.evaluatedAt).toLocaleString("ko-KR") : ""}`;
+    els.feedbackText.textContent = ev.feedback || "등록된 피드백이 없습니다.";
+  } catch (error) {
+    console.error("Feedback load failed", error);
     els.feedbackSection.classList.add("hidden");
-    return;
   }
-
-  const ev = evaluations[latest.id];
-  if (!ev || !ev.publishedToStudent || state.currentStep !== 1) {
-    els.feedbackSection.classList.add("hidden");
-    return;
-  }
-
-  els.feedbackSection.classList.remove("hidden");
-  els.feedbackEvaluator.textContent = `평가 교사: ${ev.evaluatorName || "교사"}`;
-  els.feedbackDate.textContent = `평가일: ${new Date(ev.evaluatedAt).toLocaleString("ko-KR")}`;
-  els.feedbackText.textContent = ev.feedback || "등록된 피드백이 없습니다.";
 }
 
 function goToStep(step) {
@@ -182,7 +176,7 @@ function goToStep(step) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function login() {
+async function login() {
   const classLabel = normalizeText(els.classInput.value);
   const studentNumber = normalizeText(els.numberInput.value);
   const birthDate = els.birthInput.value.trim();
@@ -200,6 +194,14 @@ function login() {
 
   if (!student) {
     els.loginMessage.textContent = "입력한 학생 정보를 확인할 수 없습니다.";
+    return;
+  }
+
+  try {
+    const dataApi = await window.firebaseDataReady;
+    await dataApi.studentSignIn();
+  } catch (error) {
+    els.loginMessage.textContent = `Firebase 로그인 실패: ${error.message}`;
     return;
   }
 
@@ -223,10 +225,17 @@ function logout() {
   location.reload();
 }
 
-function restoreSession() {
+async function restoreSession() {
   const uid = sessionStorage.getItem("cellAppSession");
   const student = DEMO_STUDENTS.find((s) => s.uid === uid);
   if (!student) return;
+  try {
+    const dataApi = await window.firebaseDataReady;
+    await dataApi.studentSignIn();
+  } catch (error) {
+    console.error("Anonymous auth failed", error);
+    return;
+  }
   state.student = student;
   els.loginView.classList.add("hidden");
   els.appView.classList.remove("hidden");
@@ -290,7 +299,7 @@ document.querySelectorAll(".step").forEach((btn) => btn.addEventListener("click"
 [els.prediction, els.interpretation1, els.interpretation2, els.conclusion, els.limitation]
   .forEach((el) => el.addEventListener("input", saveDraft));
 
-$("submitBtn").addEventListener("click", () => {
+$("submitBtn").addEventListener("click", async () => {
   const requiredText = [
     els.prediction.value.trim(),
     els.interpretation1.value.trim(),
@@ -305,28 +314,34 @@ $("submitBtn").addEventListener("click", () => {
     return;
   }
 
-  const submissions = JSON.parse(localStorage.getItem("cellAppSubmissions") || "[]");
-  submissions.push({
-    id: `sub_${Date.now()}`,
-    studentUid: state.student.uid,
-    schoolYear: "2026",
-    grade: "3",
-    classLabel: state.student.classLabel,
-    studentNumber: state.student.studentNumber,
-    studentName: state.student.name,
-    activityId: "cell-surface-volume",
-    records: state.records,
-    prediction: els.prediction.value.trim(),
-    interpretation1: els.interpretation1.value.trim(),
-    interpretation2: els.interpretation2.value.trim(),
-    conclusion: els.conclusion.value.trim(),
-    limitation: els.limitation.value.trim(),
-    status: "submitted",
-    submittedAt: new Date().toISOString()
-  });
-  localStorage.setItem("cellAppSubmissions", JSON.stringify(submissions));
-  els.submitMessage.style.color = "#16845b";
-  els.submitMessage.textContent = "제출이 완료되었습니다. 체험판에서는 이 브라우저에 저장됩니다.";
+  try {
+    els.submitMessage.style.color = "#355070";
+    els.submitMessage.textContent = "Firebase에 제출하고 있습니다...";
+    const dataApi = await window.firebaseDataReady;
+    await dataApi.studentSignIn();
+    await dataApi.saveSubmission({
+      studentUid: state.student.uid,
+      schoolYear: "2026",
+      grade: "3",
+      classLabel: state.student.classLabel,
+      studentNumber: state.student.studentNumber,
+      studentName: state.student.name,
+      activityId: "cell-surface-volume",
+      records: state.records,
+      prediction: els.prediction.value.trim(),
+      interpretation1: els.interpretation1.value.trim(),
+      interpretation2: els.interpretation2.value.trim(),
+      conclusion: els.conclusion.value.trim(),
+      limitation: els.limitation.value.trim(),
+      status: "submitted"
+    });
+    els.submitMessage.style.color = "#16845b";
+    els.submitMessage.textContent = "제출이 완료되었습니다. 교사 대시보드에서 확인할 수 있습니다.";
+  } catch (error) {
+    console.error("Submission failed", error);
+    els.submitMessage.style.color = "#b42318";
+    els.submitMessage.textContent = `제출 실패: ${error.message}`;
+  }
 });
 
 renderSimulation();
