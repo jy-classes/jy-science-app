@@ -448,7 +448,7 @@ async function saveEvaluation(publishToStudent = true) {
   try {
     $("evalMessage").textContent = publishToStudent ? "최종 평가를 저장하고 있습니다..." : "임시 저장하고 있습니다...";
     const dataApi = await window.firebaseDataReady;
-    await dataApi.saveTeacherEvaluation(s.id, s.ownerUid, {
+    await dataApi.saveTeacherEvaluation(s.id, s.ownerUid, s.classKey, {
       score1: values[0], score2: values[1], score3: values[2], score4: values[3], score5: values[4],
       total: values.reduce((a, b) => a + b, 0),
       feedback: $("teacherFeedback").value.trim()
