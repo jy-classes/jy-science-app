@@ -14,6 +14,23 @@
     table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:11px;border-bottom:1px solid #edf0f5;text-align:left}th{background:#f7f9fc}.table-wrap{overflow:auto;border:1px solid #e0e6f0;border-radius:12px}
     .message{min-height:24px;color:#176c3a}.error{color:#c62828}.actions{display:flex;gap:7px}.danger{color:#c62828}
     @media(max-width:700px){.grid{grid-template-columns:1fr}}
+    .student-grid{display:grid;grid-template-columns:repeat(6,minmax(100px,1fr));gap:10px;align-items:end}
+    .student-grid label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+    .student-table{min-width:900px}
+    .csv-box{margin-top:16px;padding:14px;background:#f7f9fc;border-radius:12px}
+    .csv-box textarea{width:100%;min-height:120px;padding:10px;border:1px solid #cfd8e8;border-radius:10px}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    .toolbar input{max-width:280px}
+    @media(max-width:900px){.student-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:560px){.student-grid{grid-template-columns:1fr}}
+    .student-list-scroll{max-height:520px;overflow:auto;border:1px solid #e0e6f0;border-radius:12px}
+    .student-list-scroll table{border:0}
+    .student-list-scroll thead th{position:sticky;top:0;z-index:2;background:#f7f9fc}
+    .student-select-cell{width:48px;text-align:center}
+    .bulk-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .bulk-actions .danger{border-color:#f0b6b6}
+
+
   </style>
 </head>
 <body>
@@ -48,6 +65,72 @@
       </form>
       <p id="adminMessage" class="message"></p>
     </div>
+
+
+    <div class="card">
+      <h2>학생 명단 등록·수정</h2>
+      <form id="studentForm">
+        <input id="editingStudentUid" type="hidden" />
+        <div class="student-grid">
+          <label>학년도<input id="studentYear" value="2026" required /></label>
+          <label>학년<input id="studentGrade" value="3" required /></label>
+          <label>반<input id="studentClass" inputmode="numeric" required /></label>
+          <label>번호<input id="studentNumber" inputmode="numeric" required /></label>
+          <label>이름<input id="studentName" required /></label>
+          <label>생년월일 8자리<input id="studentBirthDate" inputmode="numeric" maxlength="8" placeholder="20120301" required /></label>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button id="saveStudentBtn" class="primary" type="submit">학생 등록</button>
+          <button id="cancelStudentEditBtn" class="ghost hidden" type="button">수정 취소</button>
+        </div>
+      </form>
+      <p id="studentMessage" class="message"></p>
+
+      <div class="csv-box">
+        <strong>학생 명단 일괄 등록</strong>
+        <p>한 줄에 한 명씩 아래 형식으로 붙여넣으세요.</p>
+        <code>학년도,학년,반,번호,이름,생년월일</code>
+        <textarea id="studentCsvInput" placeholder="2026,3,1,1,홍길동,20120301&#10;2026,3,1,2,김과학,20120415"></textarea>
+        <div class="actions" style="margin-top:10px">
+          <input id="studentCsvFile" type="file" accept=".csv,text/csv" />
+          <button id="importStudentsBtn" class="primary" type="button">명단 등록</button>
+          <button id="downloadStudentCsvBtn" class="ghost" type="button">CSV 양식 다운로드</button>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0">등록 학생 목록</h2>
+        <input id="studentSearch" placeholder="반·번호·이름 검색" />
+        <span id="studentCount">등록 학생 0명</span>
+      </div>
+
+      <div class="bulk-actions" style="margin-bottom:12px">
+        <label class="class-chip">
+          <input id="selectAllStudents" type="checkbox" />
+          현재 목록 전체 선택
+        </label>
+        <span id="selectedStudentCount">선택 0명</span>
+        <button id="deleteSelectedStudentsBtn" class="ghost danger" type="button" disabled>
+          선택 학생 일괄 삭제
+        </button>
+      </div>
+
+      <div class="student-list-scroll">
+        <table class="student-table">
+          <thead>
+            <tr>
+              <th class="student-select-cell">선택</th>
+              <th>학년도</th><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>생년월일</th><th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="studentTable"><tr><td colspan="8">등록된 학생이 없습니다.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
 
     <div class="card">
       <h2>인증 교사 목록</h2>

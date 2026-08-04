@@ -181,6 +181,26 @@ async function deleteRegisteredStudent(studentUid) {
   await deleteDoc(doc(db, "students", String(studentUid)));
 }
 
+
+async function deleteRegisteredStudents(studentUids) {
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) {
+    throw new Error("관리자 로그인이 필요합니다.");
+  }
+
+  const uniqueIds = [...new Set(
+    (Array.isArray(studentUids) ? studentUids : [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  )];
+
+  for (const studentUid of uniqueIds) {
+    await deleteDoc(doc(db, "students", studentUid));
+  }
+
+  return uniqueIds.length;
+}
+
 function subscribeStudents(callback, onError, managedClasses = null) {
   const classKeys = Array.isArray(managedClasses)
     ? managedClasses.filter(Boolean)
@@ -466,6 +486,7 @@ window.firebaseDataReady = Promise.resolve({
   ensureStudentRegistry,
   saveRegisteredStudent,
   deleteRegisteredStudent,
+  deleteRegisteredStudents,
   subscribeStudents,
   teacherSignIn,
   verifyAdmin,
