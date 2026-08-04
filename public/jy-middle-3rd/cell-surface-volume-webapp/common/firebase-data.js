@@ -401,14 +401,22 @@ function subscribeDashboard(callback, onError, managedClasses = []) {
   }
 
   const submissionsByClass = new Map();
-  const evaluations = new Map();
+  const evaluationsByClass = new Map();
 
   const emit = () => {
     const submissions = Array.from(submissionsByClass.values()).flat();
-    callback(submissions.map((submission) => ({
-      ...submission,
-      evaluation: evaluations.get(submission.id) || null
-    })));
+    const evaluations = new Map(
+      Array.from(evaluationsByClass.values())
+        .flat()
+        .map((evaluation) => [evaluation.id, evaluation])
+    );
+
+    callback(
+      submissions.map((submission) => ({
+        ...submission,
+        evaluation: evaluations.get(submission.id) || null
+      }))
+    );
   };
 
   const unsubs = [];
@@ -416,7 +424,10 @@ function subscribeDashboard(callback, onError, managedClasses = []) {
   classKeys.forEach((classKey) => {
     unsubs.push(
       onSnapshot(
-        query(collection(db, "submissions"), where("classKey", "==", classKey)),
+        query(
+          collection(db, "submissions"),
+          where("classKey", "==", classKey)
+        ),
         (snap) => {
           submissionsByClass.set(classKey, snap.docs.map(plain));
           emit();
@@ -424,18 +435,21 @@ function subscribeDashboard(callback, onError, managedClasses = []) {
         onError
       )
     );
-  });
 
-  unsubs.push(
-    onSnapshot(collection(db, "evaluations"), (snap) => {
-      evaluations = new Map(
-        snap.docs
-          .map((d) => [d.id, plain(d)])
-          .filter(([, evaluation]) => classKeys.includes(evaluation.classKey))
-      );
-      emit();
-    }, onError)
-  );
+    unsubs.push(
+      onSnapshot(
+        query(
+          collection(db, "evaluations"),
+          where("classKey", "==", classKey)
+        ),
+        (snap) => {
+          evaluationsByClass.set(classKey, snap.docs.map(plain));
+          emit();
+        },
+        onError
+      )
+    );
+  });
 
   return () => unsubs.forEach((unsub) => unsub());
 }
